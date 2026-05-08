@@ -1,8 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import pickle
 
 import numpy as np
+import pandas as pd
+
+
+@dataclass(frozen=True)
+class ReturnWindowDataset:
+    windows: np.ndarray
+    labels: np.ndarray
+    strategy_ids: np.ndarray
+    end_dates: np.ndarray
+    source: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -27,13 +39,22 @@ class WindowGenerator:
         noise = rng.normal(0.0, noise_scale, size=(n, candidates.shape[1]))
         return candidates[indices] + noise
 
+    def augment(
+        self,
+        windows,
+        regime_labels,
+        n_per_regime: int = 100,
+        seed: int | None = None,
+    ) -> ReturnWindowDataset:
+        return _augment_with_generator(self, windows, regime_labels, n_per_regime=n_per_regime, seed=seed)
+
 
 def fit_deep_generator(
     windows,
     regime_labels,
     epochs: int = 25,
     seed: int = 42,
-    backend: str = "auto",
+    backend: str = "bootstrap",
 ) -> WindowGenerator:
     window_array = np.asarray(windows, dtype=float)
     label_array = np.asarray(regime_labels)
@@ -46,14 +67,80 @@ def fit_deep_generator(
     if epochs < 1:
         raise ValueError("epochs must be positive")
 
-    if backend not in {"auto", "bootstrap", "torch"}:
-        raise ValueError("backend must be one of: auto, bootstrap, torch")
+    if backend not in {"bootstrap", "torch"}:
+        raise ValueError("backend must be one of: bootstrap, torch")
     if backend == "torch":
-        return _fit_torch_generator(window_array, label_array, epochs=epochs, seed=seed)
-    elif backend == "auto" and _torch_available():
         return _fit_torch_generator(window_array, label_array, epochs=epochs, seed=seed)
 
     return WindowGenerator(windows=window_array, labels=label_array, backend="bootstrap", seed=seed)
+
+
+def make_return_windows(
+    strategy_returns: pd.DataFrame,
+    regimes: pd.DataFrame,
+    window_length: int = 20,
+    stride: int = 1,
+    return_column: str = "return",
+) -> ReturnWindowDataset:
+    if window_length < 2:
+        raise ValueError("window_length must be at least 2")
+    if stride < 1:
+        raise ValueError("stride must be positive")
+    required_returns = {"date", "strategy_id", return_column}
+    required_regimes = {"date", "regime"}
+    missing_returns = sorted(required_returns.difference(strategy_returns.columns))
+    missing_regimes = sorted(required_regimes.difference(regimes.columns))
+    if missing_returns:
+        raise ValueError(f"strategy_returns missing required columns: {missing_returns}")
+    if missing_regimes:
+        raise ValueError(f"regimes missing required columns: {missing_regimes}")
+
+    returns = strategy_returns.copy()
+    regime_frame = regimes.copy()
+    returns["date"] = pd.to_datetime(returns["date"]).dt.tz_localize(None)
+    regime_frame["date"] = pd.to_datetime(regime_frame["date"]).dt.tz_localize(None)
+    merged = returns.merge(regime_frame[["date", "regime"]], on="date", how="inner")
+    merged[return_column] = pd.to_numeric(merged[return_column], errors="raise")
+
+    windows: list[np.ndarray] = []
+    labels: list[object] = []
+    strategy_ids: list[str] = []
+    end_dates: list[pd.Timestamp] = []
+    for strategy_id, group in merged.groupby("strategy_id", sort=True):
+        group = group.sort_values("date").reset_index(drop=True)
+        values = group[return_column].to_numpy(dtype=float)
+        regime_values = group["regime"].to_numpy()
+        for start in range(0, len(group) - window_length + 1, stride):
+            end = start + window_length
+            window_regimes = regime_values[start:end]
+            label = _majority_label(window_regimes)
+            windows.append(values[start:end])
+            labels.append(label)
+            strategy_ids.append(str(strategy_id))
+            end_dates.append(group.loc[end - 1, "date"])
+
+    if not windows:
+        raise ValueError("Not enough overlapping strategy/regime history to create return windows")
+    return ReturnWindowDataset(
+        windows=np.asarray(windows, dtype=float),
+        labels=np.asarray(labels),
+        strategy_ids=np.asarray(strategy_ids),
+        end_dates=np.asarray(end_dates, dtype="datetime64[ns]"),
+        source=np.asarray(["real"] * len(windows)),
+    )
+
+
+def save_generator(generator, path: str | Path) -> Path:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("wb") as handle:
+        pickle.dump(generator, handle)
+    return output
+
+
+def load_generator(path: str | Path):
+    with Path(path).open("rb") as handle:
+        return pickle.load(handle)
 
 
 def _torch_available() -> bool:
@@ -112,6 +199,15 @@ class TorchWindowGenerator:
         with torch.no_grad():
             normalized = generator(torch.cat([noise, one_hot], dim=1)).numpy()
         return normalized * self.std + self.mean
+
+    def augment(
+        self,
+        windows,
+        regime_labels,
+        n_per_regime: int = 100,
+        seed: int | None = None,
+    ) -> ReturnWindowDataset:
+        return _augment_with_generator(self, windows, regime_labels, n_per_regime=n_per_regime, seed=seed)
 
 
 def _fit_torch_generator(windows: np.ndarray, labels: np.ndarray, epochs: int, seed: int) -> TorchWindowGenerator:
@@ -218,3 +314,40 @@ def _gradient_penalty(torch, critic, real, fake, one_hot):
         only_inputs=True,
     )[0]
     return ((gradients.norm(2, dim=1) - 1.0) ** 2).mean()
+
+
+def _augment_with_generator(generator, windows, regime_labels, n_per_regime: int, seed: int | None) -> ReturnWindowDataset:
+    if n_per_regime < 1:
+        raise ValueError("n_per_regime must be positive")
+    real_windows = np.asarray(windows, dtype=float)
+    real_labels = np.asarray(regime_labels)
+    if real_windows.ndim != 2:
+        raise ValueError("windows must be a 2D array shaped as (n_windows, window_length)")
+    if len(real_windows) != len(real_labels):
+        raise ValueError("windows and regime_labels must have the same length")
+
+    synthetic_windows: list[np.ndarray] = []
+    synthetic_labels: list[np.ndarray] = []
+    rng = np.random.default_rng(seed)
+    for regime in np.unique(real_labels):
+        regime_seed = int(rng.integers(0, 2**32 - 1))
+        sample = generator.sample(n=n_per_regime, regime=regime, seed=regime_seed)
+        synthetic_windows.append(sample)
+        synthetic_labels.append(np.asarray([regime] * len(sample)))
+
+    generated = np.vstack(synthetic_windows)
+    generated_labels = np.concatenate(synthetic_labels)
+    all_windows = np.vstack([real_windows, generated])
+    all_labels = np.concatenate([real_labels, generated_labels])
+    return ReturnWindowDataset(
+        windows=all_windows,
+        labels=all_labels,
+        strategy_ids=np.asarray(["unknown"] * len(all_windows)),
+        end_dates=np.asarray([np.datetime64("NaT")] * len(all_windows), dtype="datetime64[ns]"),
+        source=np.asarray(["real"] * len(real_windows) + ["synthetic"] * len(generated)),
+    )
+
+
+def _majority_label(values: np.ndarray):
+    labels, counts = np.unique(values, return_counts=True)
+    return labels[np.argmax(counts)]

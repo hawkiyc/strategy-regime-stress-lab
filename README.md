@@ -44,8 +44,10 @@ from regime_lab import (
     build_report,
     fit_deep_generator,
     fit_regime_model,
+    load_generator,
     load_market_data,
     load_strategy_returns,
+    make_return_windows,
     stress_test,
 )
 
@@ -55,6 +57,41 @@ regimes = fit_regime_model(market, n_regimes=4)
 results = stress_test(returns, regimes, n_sims=1000, seed=42)
 build_report(results, output="report.html")
 ```
+
+## Deep Generator Data Flow
+
+The conditional WGAN-style generator does not consume raw OHLCV rows directly. It consumes fixed-length return windows and one regime label per window:
+
+- `windows`: shape `(n_windows, window_length)`, usually rolling slices of strategy returns.
+- `regime_labels`: shape `(n_windows,)`, usually the majority market regime inside each return window.
+
+Build those inputs from real strategy returns and regime labels:
+
+```python
+window_data = make_return_windows(returns, regimes.regimes, window_length=20, stride=1)
+```
+
+Default local behavior is bootstrap-only and does not train PyTorch:
+
+```python
+generator = fit_deep_generator(window_data.windows, window_data.labels)
+augmented = generator.augment(window_data.windows, window_data.labels, n_per_regime=100)
+```
+
+For Colab GPU training, explicitly request the PyTorch backend:
+
+```python
+generator = fit_deep_generator(window_data.windows, window_data.labels, backend="torch", epochs=25)
+```
+
+After Colab training, download the saved artifact and load it locally:
+
+```python
+generator = load_generator("artifacts/models/deep_generator.pkl")
+augmented = generator.augment(window_data.windows, window_data.labels, n_per_regime=100)
+```
+
+The `augmented` dataset contains both real and synthetic windows and marks each row with `source == "real"` or `source == "synthetic"`.
 
 ## Guardrails
 
