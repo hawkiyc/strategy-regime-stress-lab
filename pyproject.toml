@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regime-lab"
+version = "0.1.0"
+description = "Strategy regime stress testing for research and risk analysis."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Gavin Jang" }]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+deep = ["torch>=2.0"]
+notebook = ["jupyter>=1.0", "nbformat>=5.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+regime-lab = "regime_lab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["regime_lab*"]
