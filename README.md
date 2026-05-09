@@ -12,17 +12,11 @@ Strategy Regime Stress Lab 是一個 Python 研究工具，用於協助小型交
 - 輸出 CAGR、volatility、Sharpe、Sortino、max drawdown、VaR、CVaR、skew、kurtosis 與 regime-wise performance。
 - 產生 deterministic HTML report，只引用已計算的 metrics。
 - 提供 optional deep-generator 介面；預設為 bootstrap，不會在本機自動訓練 PyTorch。
-- 重型模型訓練預設放在 Google Colab 或其他 GPU runtime，本機只跑測試、報告與輕量 demo。
+- 模型訓練預設放在 Google Colab 或其他 GPU runtime，本機只跑測試、報告與輕量 demo。
 
 ### 套件管理
 
-本專案使用 Poetry 管理 Python 套件與虛擬環境。請先在系統環境安裝 Poetry，並使用系統可見的 `poetry` 指令，不要使用 Codex runtime 內建的 Poetry。
-
-本 repo 透過 `poetry.toml` 設定讓 Poetry 在專案資料夾內建立 `.venv`：
-
-```text
-/Users/hawkiyc/Documents/strategy-regime-stress-lab/.venv
-```
+本專案使用 Poetry 管理 Python 套件與虛擬環境。
 
 安裝依賴：
 
@@ -108,13 +102,13 @@ generator = fit_deep_generator(window_data.windows, window_data.labels)
 augmented = generator.augment(window_data.windows, window_data.labels, n_per_regime=100)
 ```
 
-在 Colab GPU 訓練時，才明確指定 PyTorch backend：
+使用 GPU 訓練時，才明確指定 PyTorch backend：
 
 ```python
 generator = fit_deep_generator(window_data.windows, window_data.labels, backend="torch", epochs=25)
 ```
 
-Colab 訓練完成後，下載模型 artifact 並在本機載入：
+訓練完成後，載入模型參數：
 
 ```python
 generator = load_generator("artifacts/models/deep_generator.pkl")
@@ -151,14 +145,6 @@ poetry install
 poetry run python -m unittest discover -s tests
 ```
 
-如果你使用 VS Code，請先查詢 Poetry 環境路徑：
-
-```bash
-poetry env info --path
-```
-
-它應該回傳專案內 `.venv`。然後在 VS Code 的 `Python: Select Interpreter` 手動選擇該路徑底下的 `bin/python`。本 repo 不會提交 `.vscode/settings.json`；IDE 設定留在你的本機。
-
 ### Colab 訓練政策
 
 本專案假設本機可能是 CPU-only 或舊硬體。請不要預設在本機訓練重型 deep-generator。
@@ -187,17 +173,11 @@ Strategy Regime Stress Lab is a Python research toolkit for small trading teams 
 - Reports CAGR, volatility, Sharpe, Sortino, max drawdown, VaR, CVaR, skew, kurtosis, and regime-wise performance.
 - Generates deterministic HTML reports that cite computed metrics only.
 - Provides an optional deep-generator interface; the default backend is bootstrap and will not train PyTorch locally.
-- Keeps heavy model training on Google Colab or another GPU runtime. Local machines should run tests, reports, and lightweight demos only.
+- Keeps model training on Google Colab or another GPU runtime. Local machines should run tests, reports, and lightweight demos only.
 
 ### Package Management
 
-This project uses Poetry for Python dependency and environment management. Install Poetry in your system environment first and use the system-visible `poetry` command, not Poetry from the Codex runtime.
-
-This repository uses `poetry.toml` so Poetry creates `.venv` inside the project folder:
-
-```text
-/Users/hawkiyc/Documents/strategy-regime-stress-lab/.venv
-```
+This project uses Poetry for Python dependency and environment management. 
 
 Install dependencies:
 
@@ -283,13 +263,13 @@ generator = fit_deep_generator(window_data.windows, window_data.labels)
 augmented = generator.augment(window_data.windows, window_data.labels, n_per_regime=100)
 ```
 
-For Colab GPU training, explicitly request the PyTorch backend:
+For GPU training, explicitly request the PyTorch backend:
 
 ```python
 generator = fit_deep_generator(window_data.windows, window_data.labels, backend="torch", epochs=25)
 ```
 
-After Colab training, download the saved artifact and load it locally:
+After training, load artifact:
 
 ```python
 generator = load_generator("artifacts/models/deep_generator.pkl")
@@ -325,14 +305,6 @@ The sample files in `examples/` are synthetic and exist only to demonstrate the 
 poetry install
 poetry run python -m unittest discover -s tests
 ```
-
-If you use VS Code, first inspect the Poetry environment path:
-
-```bash
-poetry env info --path
-```
-
-It should point to the in-project `.venv`. Then use `Python: Select Interpreter` and choose `bin/python` under that path. This repository does not commit `.vscode/settings.json`; IDE settings stay local to your machine.
 
 ### Colab Training Policy
 
