@@ -16,9 +16,12 @@ Strategy Regime Stress Lab 是一個 Python 研究工具，用於協助小型交
 
 ### 套件管理
 
-本專案使用 Poetry 管理 Python 套件與虛擬環境。
+本專案使用 Poetry 管理 Python 套件與虛擬環境。請先在系統環境安裝 Poetry，並使用系統可見的 `poetry` 指令，不要使用 Codex runtime 內建的 Poetry。
+
+建議讓 Poetry 在專案資料夾內建立 `.venv`：
 
 ```bash
+poetry config virtualenvs.in-project true --local
 poetry install
 ```
 
@@ -143,13 +146,13 @@ poetry install
 poetry run python -m unittest discover -s tests
 ```
 
-VS Code 請使用專案內 interpreter：
+如果你使用 VS Code，請在 Poetry 建好環境後選擇 Poetry 產生的 interpreter：
 
 ```text
-${workspaceFolder}/.venv/bin/python3
+/Users/hawkiyc/Documents/strategy-regime-stress-lab/.venv/bin/python
 ```
 
-本 repo 也提供 `.vscode/settings.json`，會讓 VS Code 優先使用專案 `.venv`。
+本 repo 不會提交 `.vscode/settings.json`；IDE 設定留在你的本機。
 
 ### Colab 訓練政策
 
@@ -183,9 +186,12 @@ Strategy Regime Stress Lab is a Python research toolkit for small trading teams 
 
 ### Package Management
 
-This project uses Poetry for Python dependency and environment management.
+This project uses Poetry for Python dependency and environment management. Install Poetry in your system environment first and use the system-visible `poetry` command, not Poetry from the Codex runtime.
+
+Recommended setup: make Poetry create `.venv` inside the project folder:
 
 ```bash
+poetry config virtualenvs.in-project true --local
 poetry install
 ```
 
@@ -310,13 +316,13 @@ poetry install
 poetry run python -m unittest discover -s tests
 ```
 
-In VS Code, use the in-project interpreter:
+If you use VS Code, select the interpreter created by Poetry after `poetry install`:
 
 ```text
-${workspaceFolder}/.venv/bin/python3
+/Users/hawkiyc/Documents/strategy-regime-stress-lab/.venv/bin/python
 ```
 
-This repository also includes `.vscode/settings.json` so VS Code prefers the project `.venv`.
+This repository does not commit `.vscode/settings.json`; IDE settings stay local to your machine.
 
 ### Colab Training Policy
 
