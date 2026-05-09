@@ -143,6 +143,14 @@ poetry install
 poetry run python -m unittest discover -s tests
 ```
 
+VS Code 請使用專案內 interpreter：
+
+```text
+${workspaceFolder}/.venv/bin/python3
+```
+
+本 repo 也提供 `.vscode/settings.json`，會讓 VS Code 優先使用專案 `.venv`。
+
 ### Colab 訓練政策
 
 本專案假設本機可能是 CPU-only 或舊硬體。請不要預設在本機訓練重型 deep-generator。
@@ -301,6 +309,14 @@ The sample files in `examples/` are synthetic and exist only to demonstrate the 
 poetry install
 poetry run python -m unittest discover -s tests
 ```
+
+In VS Code, use the in-project interpreter:
+
+```text
+${workspaceFolder}/.venv/bin/python3
+```
+
+This repository also includes `.vscode/settings.json` so VS Code prefers the project `.venv`.
 
 ### Colab Training Policy
 
